@@ -13,13 +13,15 @@ export function makeRequest({
     headers,
     body = null,
     timeout = 5000,
+    shouldRetry = false,
+    retryCount = 0,
     success = result => {},
     fail = error => {},
 }) {
     let cancel;
     let cancelled = new Promise(resolve => (cancel = resolve));
 
-    const isSuccess = req => req.status == 200;
+    const isSuccess = req => req.status === 200;
 
     const setHeaders = (request, headers = {}) => {
         for (const header in headers) {
@@ -28,18 +30,18 @@ export function makeRequest({
     };
 
     function execute() {
-        // console.log("execute request:", url);
         let request = new XMLHttpRequest();
 
-        const onTimeout = e => {
+        const timeoutHandler = e => {
+            console.log('======> timeout');
             fail('Request timeout');
         };
 
-        const onAbort = e => {
+        const abortHandler = e => {
             fail('Abort request');
         };
 
-        const onError = e => {
+        const errorHandler = e => {
             const error = new Error(`Cannot ${method} to ${url}`);
             if (request.status === 404 || request.status === 0) {
                 error.code = request.status;
@@ -47,7 +49,11 @@ export function makeRequest({
             fail(error);
         };
 
-        const onLoad = e => {
+        /*
+        https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequestEventTarget/onload
+        onload: this will be called when the request completes successfully 
+        */
+        const loadHandler = e => {
             if (isSuccess(request)) {
                 success(request.responseText);
             } else {
@@ -55,9 +61,18 @@ export function makeRequest({
             }
         };
 
-        const onReadyStateChange = e => {
+        /*
+        https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/onreadystatechange
+        onreadystatechange: this may be called mutliple times during the request
+        */
+        const stateChangeHandler = e => {
+            /*
+            This callback is a little bit special, we can use it in some cases for handling some 
+            associate state in order to communicate with server base on readyState
+             */
             if (request.readyState === 4) {
-                onLoad();
+                // Completes successfully!
+                // onLoad();
             }
         };
 
@@ -68,14 +83,14 @@ export function makeRequest({
             .catch(e => {});
 
         try {
-            request.timeout = timeout;
             request.open(method, url);
-            request.onreadystatechange = onReadyStateChange;
             setHeaders(headers);
-            request.onabort = onAbort;
-            request.ontimeout = onTimeout;
-            request.onload = onLoad;
-            request.onerror = onError;
+            request.timeout = timeout;
+            request.onreadystatechange = stateChangeHandler;
+            request.onabort = abortHandler;
+            request.ontimeout = timeoutHandler;
+            request.onload = loadHandler;
+            request.onerror = errorHandler;
             request.send(body);
         } catch (e) {
             fail(error);
@@ -84,6 +99,8 @@ export function makeRequest({
 
     return {
         id: requestId,
+        shouldRetry: shouldRetry,
+        retryCount: retryCount,
         execute: execute,
         cancel: cancel,
     };

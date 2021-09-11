@@ -16,6 +16,7 @@ export default RunTest = () => {
                     method: 'GET',
                     url: api.PROFILE,
                     timeout: 5000,
+                    shouldRetry: true,
                 },
                 RequestManager.PRIORITY_HIGH
             )
@@ -30,6 +31,7 @@ export default RunTest = () => {
                     method: 'GET',
                     url: api.FOLLWERS,
                     timeout: 5000,
+                    shouldRetry: true,
                 },
                 RequestManager.PRIORITY_GENERAL
             )

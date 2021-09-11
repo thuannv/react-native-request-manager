@@ -6,11 +6,11 @@ class RequestQueue {
         this.failure = 0;
         this.requests = [];
         this.running = [];
+        this.maxRetries = 3;
         this.maxConcurrentRunningSlots = maxConcurrentRunningSlots;
     }
 
     scheduleNext() {
-        // console.log("scheduleNext()");
         const availSlots = this.maxConcurrentRunningSlots - this.running.length;
         if (availSlots > 0) {
             const executableRequestCount = Math.min(availSlots, this.requests.length);
@@ -26,20 +26,39 @@ class RequestQueue {
     }
 
     removeFromRunning(requestId) {
-        // console.log("Before remove:", this.running);
+        const request = this.running.find(item => item.id === requestId);
+        console.log('Remove from running', requestId, request);
         this.running = this.running.filter(request => request.id !== requestId);
-        // console.log("After remove:", this.running);
+        return request;
     }
 
-    handleRequestResult(requestId, result, error) {
-        if (error) {
-            this.failure++;
-        } else {
-            this.success++;
-        }
-        // console.log("result", requestId, result, error);
+    handleSucces(requestId, result) {
+        this.success++;
+        // console.log('Handle success requestId', requestId);
         this.removeFromRunning(requestId);
         this.scheduleNext();
+    }
+
+    handleError(requestId, error) {
+        this.failure++;
+        let shouldReject = true;
+        // console.log('Handle failure requestId', requestId);
+        const request = this.removeFromRunning(requestId);
+        if (error && error !== 'Abort request') {
+            let { shouldRetry = false, retryCount = 0 } = request || {};
+            if (shouldRetry && retryCount < this.maxRetries) {
+                console.log(
+                    `requestId: ${requestId} shouldRetry: ${shouldRetry} retryCount: ${retryCount}`
+                );
+                retryCount++;
+                shouldRetry = shouldRetry && retryCount < this.maxRetries;
+                request.shouldRetry = shouldRetry;
+                request.retryCount = retryCount;
+                this.requests.push(request);
+            }
+        }
+        this.scheduleNext();
+        return shouldReject;
     }
 
     add({ url, method = 'GET', headers, body = null, timeout = 5000 }) {
@@ -53,12 +72,13 @@ class RequestQueue {
                 body,
                 timeout,
                 success: result => {
-                    this.handleRequestResult(requestId, result);
+                    this.handleSucces(requestId, result);
                     resolve(result);
                 },
                 fail: e => {
-                    this.handleRequestResult(requestId, undefined, e);
-                    reject(e);
+                    if (this.handleError(requestId, e)) {
+                        reject(e);
+                    }
                 },
             });
 
