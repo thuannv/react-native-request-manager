@@ -53,7 +53,7 @@ class RequestQueue {
         this.cancelPendingRequests();
     }
 
-    getWaitingRatio() {
+    getRequestRates() {
         return calculateRates(this.requests.length, this.maxConcurrentRequests);
     }
 
@@ -64,7 +64,7 @@ class RequestQueue {
             waiting: this.requests.length,
             failure: this.failure,
             success: this.success,
-            waitingRatio: this.getWaitingRatio(),
+            requestRates: this.getRequestRates(),
         };
     }
 
