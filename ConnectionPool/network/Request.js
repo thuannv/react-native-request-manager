@@ -14,7 +14,6 @@ export function makeRequest({
     body = null,
     timeout = 5000,
     shouldRetry = false,
-    retryCount = 0,
     success = result => {},
     fail = error => {},
 }) {
@@ -51,7 +50,7 @@ export function makeRequest({
 
         /*
         https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequestEventTarget/onload
-        onload: this will be called when the request completes successfully 
+        onload: this will be called when the request completes successfully
         */
         const loadHandler = e => {
             if (isSuccess(request)) {
@@ -67,7 +66,7 @@ export function makeRequest({
         */
         const stateChangeHandler = e => {
             /*
-            This callback is a little bit special, we can use it in some cases for handling some 
+            This callback is a little bit special, we can use it in some cases for handling some
             associate state in order to communicate with server base on readyState
              */
             if (request.readyState === 4) {
@@ -76,15 +75,11 @@ export function makeRequest({
             }
         };
 
-        cancelled
-            .then(() => {
-                request.abort();
-            })
-            .catch(e => {});
+        cancelled.then(() => request.abort());
 
         try {
-            request.open(method, url);
-            setHeaders(headers);
+            request.open(method, url, true);
+            setHeaders(request, headers);
             request.timeout = timeout;
             request.onreadystatechange = stateChangeHandler;
             request.onabort = abortHandler;
@@ -100,7 +95,7 @@ export function makeRequest({
     return {
         id: requestId,
         shouldRetry: shouldRetry,
-        retryCount: retryCount,
+        retryCount: 0,
         execute: execute,
         cancel: cancel,
     };

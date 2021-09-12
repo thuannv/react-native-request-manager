@@ -27,14 +27,13 @@ class RequestQueue {
 
     removeFromRunning(requestId) {
         const request = this.running.find(item => item.id === requestId);
-        console.log('Remove from running', requestId, request);
+        // console.log('Remove from running', requestId, request);
         this.running = this.running.filter(request => request.id !== requestId);
         return request;
     }
 
     handleSucces(requestId, result) {
         this.success++;
-        // console.log('Handle success requestId', requestId);
         this.removeFromRunning(requestId);
         this.scheduleNext();
     }
@@ -42,11 +41,11 @@ class RequestQueue {
     handleError(requestId, error) {
         this.failure++;
         let shouldReject = true;
-        // console.log('Handle failure requestId', requestId);
         const request = this.removeFromRunning(requestId);
         if (error && error !== 'Abort request') {
             let { shouldRetry = false, retryCount = 0 } = request || {};
             if (shouldRetry && retryCount < this.maxRetries) {
+                shouldReject = false;
                 console.log(
                     `requestId: ${requestId} shouldRetry: ${shouldRetry} retryCount: ${retryCount}`
                 );
@@ -61,7 +60,7 @@ class RequestQueue {
         return shouldReject;
     }
 
-    add({ url, method = 'GET', headers, body = null, timeout = 5000 }) {
+    add({ url, method = 'GET', headers, body = null, timeout = 5000, shouldRetry = false }) {
         return new Promise((resolve, reject) => {
             const requestId = getRequestId();
             const request = makeRequest({
@@ -71,12 +70,14 @@ class RequestQueue {
                 headers,
                 body,
                 timeout,
+                shouldRetry,
                 success: result => {
                     this.handleSucces(requestId, result);
                     resolve(result);
                 },
                 fail: e => {
-                    if (this.handleError(requestId, e)) {
+                    const shouldRejectFailureRequest = this.handleError(requestId, e);
+                    if (shouldRejectFailureRequest) {
                         reject(e);
                     }
                 },

@@ -20,9 +20,9 @@ export default RunTest = () => {
                 },
                 RequestManager.PRIORITY_HIGH
             )
-            // .then(res => console.log(res))
+            .then(res => console.log(res))
             .catch(e => {});
-    }, 500);
+    }, 1000);
 
     setInterval(() => {
         manager
@@ -35,9 +35,22 @@ export default RunTest = () => {
                 },
                 RequestManager.PRIORITY_GENERAL
             )
-            // .then(res => console.log(res))
+            .then(res => console.log(res))
             .catch(e => {});
     }, 500);
 
     setInterval(() => manager.stats(), 5000);
+
+    // manager
+    //     .submit(
+    //         {
+    //             method: 'GET',
+    //             url: api.PROFILE,
+    //             timeout: 10,
+    //             shouldRetry: true,
+    //         },
+    //         RequestManager.PRIORITY_HIGH
+    //     )
+    //     .then(res => console.log(res))
+    //     .catch(e => console.log(e));
 };
