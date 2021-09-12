@@ -14,13 +14,21 @@ class RequestManager {
         return this.queues[priority].add(request);
     }
 
+    cancelAllRequests() {
+        console.log('cancelAllRequests()');
+        this.queues[RequestManager.PRIORITY_HIGH].cancelAllRequests();
+        this.queues[RequestManager.PRIORITY_GENERAL].cancelAllRequests();
+        this.stats();
+    }
+
     stats() {
         let stats;
         console.group('RequestManager');
 
         stats = this.queues[RequestManager.PRIORITY_HIGH].stats();
         console.group('PriorityQueue');
-        console.log(`Max slots: ${stats.maxSlots}`);
+        console.log(`Num slots: ${stats.maxSlots}`);
+        console.log(`RequestRates: ${stats.requestRates}`);
         console.log(`Running: ${stats.running}`);
         console.log(`Waiting: ${stats.waiting}`);
         console.log(`Success: ${stats.success}`);
@@ -29,11 +37,13 @@ class RequestManager {
 
         stats = this.queues[RequestManager.PRIORITY_GENERAL].stats();
         console.group('GeneralQueue');
-        console.log(`Max slots: ${stats.maxSlots}`);
+        console.log(`Num slots: ${stats.maxSlots}`);
+        console.log(`RequestRates: ${stats.requestRates}`);
         console.log(`Running: ${stats.running}`);
         console.log(`Waiting: ${stats.waiting}`);
         console.log(`Success: ${stats.success}`);
         console.log(`Failure: ${stats.failure}`);
+
         console.groupEnd();
 
         console.groupEnd();

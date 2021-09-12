@@ -1,17 +1,75 @@
-import { makeRequest, getRequestId } from './Request';
+import { makeRequest } from './Request';
+
+function calculateRates(a, b) {
+    return Math.round((100 * a) / b + Number.EPSILON) / 100;
+}
 
 class RequestQueue {
-    constructor(maxConcurrentRunningSlots) {
+    constructor(maxConcurrentRequests) {
         this.success = 0;
         this.failure = 0;
         this.requests = [];
         this.running = [];
         this.maxRetries = 3;
-        this.maxConcurrentRunningSlots = maxConcurrentRunningSlots;
+        this.maxConcurrentRequests = maxConcurrentRequests;
+    }
+
+    add({ url, method = 'GET', headers, body = null, timeout = 5000, shouldRetry = false }) {
+        return new Promise((resolve, reject) => {
+            const request = makeRequest({
+                url,
+                method,
+                headers,
+                body,
+                timeout,
+                shouldRetry,
+                success: (requestId, result) => {
+                    this.handleSucces(requestId, result);
+                    resolve(result);
+                },
+                fail: (requestId, error) => {
+                    const shouldRejectFailureRequest = this.handleError(requestId, error);
+                    if (shouldRejectFailureRequest) {
+                        reject(error);
+                    }
+                },
+            });
+            this.requests.push(request);
+            this.scheduleNext();
+        });
+    }
+
+    cancelPendingRequests() {
+        this.requests = [];
+    }
+
+    cancelRunningRequests() {
+        this.running.forEach(request => request.cancel());
+        this.running = [];
+    }
+
+    cancelAllRequests() {
+        this.cancelRunningRequests();
+        this.cancelPendingRequests();
+    }
+
+    getWaitingRatio() {
+        return calculateRates(this.requests.length, this.maxConcurrentRequests);
+    }
+
+    stats() {
+        return {
+            maxSlots: this.maxConcurrentRequests,
+            running: this.running.length,
+            waiting: this.requests.length,
+            failure: this.failure,
+            success: this.success,
+            waitingRatio: this.getWaitingRatio(),
+        };
     }
 
     scheduleNext() {
-        const availSlots = this.maxConcurrentRunningSlots - this.running.length;
+        const availSlots = this.maxConcurrentRequests - this.running.length;
         if (availSlots > 0) {
             const executableRequestCount = Math.min(availSlots, this.requests.length);
             if (executableRequestCount > 0) {
@@ -27,8 +85,11 @@ class RequestQueue {
 
     removeFromRunning(requestId) {
         const request = this.running.find(item => item.id === requestId);
-        // console.log('Remove from running', requestId, request);
-        this.running = this.running.filter(request => request.id !== requestId);
+        /** request may be not found in running queue if we has already call cancel all requests */
+        if (request) {
+            // console.log(`removeFromRunning() => requestId=`, requestId, request);
+            this.running = this.running.filter(request => request.id !== requestId);
+        }
         return request;
     }
 
@@ -46,9 +107,9 @@ class RequestQueue {
             let { shouldRetry = false, retryCount = 0 } = request || {};
             if (shouldRetry && retryCount < this.maxRetries) {
                 shouldReject = false;
-                console.log(
-                    `requestId: ${requestId} shouldRetry: ${shouldRetry} retryCount: ${retryCount}`
-                );
+                // console.log(
+                //     `requestId: ${requestId} shouldRetry: ${shouldRetry} retryCount: ${retryCount}`
+                // );
                 retryCount++;
                 shouldRetry = shouldRetry && retryCount < this.maxRetries;
                 request.shouldRetry = shouldRetry;
@@ -58,44 +119,6 @@ class RequestQueue {
         }
         this.scheduleNext();
         return shouldReject;
-    }
-
-    add({ url, method = 'GET', headers, body = null, timeout = 5000, shouldRetry = false }) {
-        return new Promise((resolve, reject) => {
-            const requestId = getRequestId();
-            const request = makeRequest({
-                requestId: requestId,
-                url,
-                method,
-                headers,
-                body,
-                timeout,
-                shouldRetry,
-                success: result => {
-                    this.handleSucces(requestId, result);
-                    resolve(result);
-                },
-                fail: e => {
-                    const shouldRejectFailureRequest = this.handleError(requestId, e);
-                    if (shouldRejectFailureRequest) {
-                        reject(e);
-                    }
-                },
-            });
-
-            this.requests.push(request);
-            this.scheduleNext();
-        });
-    }
-
-    stats() {
-        return {
-            maxSlots: this.maxConcurrentRunningSlots,
-            running: this.running.length,
-            waiting: this.requests.length,
-            failure: this.failure,
-            success: this.success,
-        };
     }
 }
 

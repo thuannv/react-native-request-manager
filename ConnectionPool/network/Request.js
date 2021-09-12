@@ -1,4 +1,4 @@
-export const getRequestId = (function () {
+const getRequestId = (function () {
     let id = 1;
     function next() {
         return id++;
@@ -7,18 +7,19 @@ export const getRequestId = (function () {
 })();
 
 export function makeRequest({
-    requestId,
     url,
     method = 'GET',
     headers,
     body = null,
     timeout = 5000,
     shouldRetry = false,
-    success = result => {},
-    fail = error => {},
+    success = (requestId, result) => {},
+    fail = (requestId, error) => {},
 }) {
     let cancel;
     let cancelled = new Promise(resolve => (cancel = resolve));
+
+    const requestId = getRequestId();
 
     const isSuccess = req => req.status === 200;
 
@@ -32,12 +33,12 @@ export function makeRequest({
         let request = new XMLHttpRequest();
 
         const timeoutHandler = e => {
-            console.log('======> timeout');
-            fail('Request timeout');
+            // console.log('======> timeout');
+            fail(requestId, 'Request timeout');
         };
 
         const abortHandler = e => {
-            fail('Abort request');
+            fail(requestId, 'Abort request');
         };
 
         const errorHandler = e => {
@@ -45,7 +46,7 @@ export function makeRequest({
             if (request.status === 404 || request.status === 0) {
                 error.code = request.status;
             }
-            fail(error);
+            fail(requestId, error);
         };
 
         /*
@@ -54,7 +55,7 @@ export function makeRequest({
         */
         const loadHandler = e => {
             if (isSuccess(request)) {
-                success(request.responseText);
+                success(requestId, request.responseText);
             } else {
                 onError();
             }
@@ -75,7 +76,7 @@ export function makeRequest({
             }
         };
 
-        cancelled.then(() => request.abort());
+        cancelled.then(() => request.abort()).catch(e => {});
 
         try {
             request.open(method, url, true);
@@ -88,7 +89,7 @@ export function makeRequest({
             request.onerror = errorHandler;
             request.send(body);
         } catch (e) {
-            fail(error);
+            fail(requestId, error);
         }
     }
 
